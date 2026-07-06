@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────
+# Poly Student Companion — 3 microservices
+#
+# Students access one URL: http://localhost:7862
+# Backends are internal only — not reachable from the host.
+#
+# Start all:          docker-compose up --build
+# Stop one backend:   docker-compose stop makan-advisor
+# Restart one:        docker-compose start makan-advisor
+# Stop everything:    docker-compose down
+# ─────────────────────────────────────────────────────────
+
+version: '3.8'
+
+services:
+
+  study-buddy:
+    build: ./study-buddy
+    # No 'ports' here — internal only, only frontend can reach it
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+
+  makan-advisor:
+    build: ./makan-advisor
+    # No 'ports' here — internal only, only frontend can reach it
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "7862:7862"             # only this port is exposed to the host
+    environment:
+      - STUDY_BUDDY_URL=http://study-buddy:7860
+      - MAKAN_ADVISOR_URL=http://makan-advisor:7861
+    depends_on:
+      - study-buddy
+      - makan-advisor
