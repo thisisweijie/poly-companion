@@ -96,7 +96,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 
 ## The AI Angle — What to Say
 
-> *"Both services call the same LLM — Qwen2.5-72B on HuggingFace. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
+> *"Both services call the same LLM — Gemma 4 (google/gemma-4-31b-it) on HuggingFace. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
 
 > *"Watch the response build up word by word. This is streaming — the model sends tokens as it generates them, not all at once. This is the exact same pattern behind ChatGPT, Claude, Gemini. Our microservice does the same thing, scoped to one job."*
 
