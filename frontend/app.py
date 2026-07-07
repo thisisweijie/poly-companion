@@ -16,6 +16,9 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+# Read backend URLs from env — docker-compose injects these at runtime.
+# Defaults point to Docker's internal hostnames, so this just works locally.
+# If you ever run these services elsewhere, update the env vars, not this file.
 STUDY_BUDDY_URL   = os.environ.get("STUDY_BUDDY_URL",   "http://study-buddy:7860")
 MAKAN_ADVISOR_URL = os.environ.get("MAKAN_ADVISOR_URL", "http://makan-advisor:7861")
 
@@ -25,12 +28,15 @@ MAKAN_ADVISOR_URL = os.environ.get("MAKAN_ADVISOR_URL", "http://makan-advisor:78
 @app.get("/health")
 async def health():
     statuses = {}
+    # Short timeout on purpose — if a backend doesn't respond in 2s it's effectively down.
+    # Don't raise this; a slow response is as bad as no response for the demo's status dots.
     async with httpx.AsyncClient(timeout=2.0) as client:
         for name, url in [("study-buddy", STUDY_BUDDY_URL), ("makan-advisor", MAKAN_ADVISOR_URL)]:
             try:
                 r = await client.get(f"{url}/health")
                 statuses[name] = "up" if r.status_code == 200 else "down"
             except Exception:
+                # Connection refused, timeout, DNS failure — all mean the same thing: down.
                 statuses[name] = "down"
     return statuses
 
@@ -52,6 +58,8 @@ class RecommendRequest(BaseModel):
 async def ask(req: AskRequest):
     async def stream():
         try:
+            # 60s timeout — LLM calls can be slow, especially on first token.
+            # Don't lower this or you'll get timeouts mid-stream on longer explanations.
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
                     "POST", f"{STUDY_BUDDY_URL}/ask", json=req.model_dump()
@@ -59,9 +67,13 @@ async def ask(req: AskRequest):
                     if r.status_code != 200:
                         yield "SERVICE_ERROR"
                         return
+                    # Forward each chunk as it arrives — we're a pass-through, not a buffer.
+                    # Buffering would defeat the whole point of streaming.
                     async for chunk in r.aiter_text():
                         yield chunk
         except Exception:
+            # Sentinel value the JS checks for — cleaner than trying to set HTTP status
+            # codes mid-stream once streaming has already started.
             yield "SERVICE_DOWN"
     return StreamingResponse(stream(), media_type="text/plain")
 
@@ -85,6 +97,9 @@ async def recommend(req: RecommendRequest):
 
 
 # ── Landing page ──────────────────────────────────────────
+# HTML is inlined as a string to keep the container simple — no static file serving,
+# no templates directory to mount. One file, one container, done.
+# If this grows, move it to a templates/ folder and use Jinja2.
 
 HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -552,10 +567,14 @@ HTML = """<!DOCTYPE html>
       const decoder = new TextDecoder();
       let result = '';
 
+      // ReadableStream loop — reads chunks as they arrive from the backend.
+      // This is what makes the text appear word by word instead of all at once.
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        // Check for sentinel values before appending — the backend sends these
+        // strings when it can't reach the LLM service, not actual response text.
         if (chunk === 'SERVICE_DOWN' || chunk === 'SERVICE_ERROR') {
           showServiceDown('sb');
           return;
@@ -637,11 +656,14 @@ HTML = """<!DOCTYPE html>
       setStatus('study-buddy',   data['study-buddy']);
       setStatus('makan-advisor', data['makan-advisor']);
     } catch (e) {
+      // If the frontend itself is unreachable this catch fires — mark both down.
       setStatus('study-buddy',   'down');
       setStatus('makan-advisor', 'down');
     }
   }
 
+  // Fire immediately on load so the dots aren't grey for the first 3 seconds,
+  // then keep polling. 3s is short enough to catch a docker-compose stop live.
   pollHealth();
   setInterval(pollHealth, 3000);
 </script>

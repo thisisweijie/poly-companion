@@ -4,25 +4,21 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from openai import OpenAI
 
-# ─────────────────────────────────────────────────────────
-# Poly Student Companion — Makan Advisor backend
-#
-# Pure REST API. No UI. One job: take mood, budget and diet,
-# stream back a hawker food recommendation.
-#
-# Completely independent of Study Buddy.
-# Different responsibility, different container, different port.
-# ─────────────────────────────────────────────────────────
-
 app = FastAPI()
 
+# Same client setup as study-buddy — HF router is OpenAI-compatible,
+# so we reuse the same library. Both services are independent but happen
+# to use the same model. That's fine — they don't share any state.
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
     api_key=os.environ.get("HF_TOKEN"),
 )
 
-MODEL = "google/gemma-4-31B-it"
+MODEL = "google/gemma-4-31b-it"
 
+# The format in this prompt matters a lot — if you change the emoji or field names,
+# update the frontend CSS too since the output renders as preformatted text.
+# Gemma follows formatting instructions pretty well but test if you swap models.
 SYSTEM_PROMPT = """
 You are a friendly Singapore hawker food advisor for polytechnic students.
 Given a student's mood, budget and dietary preference, recommend ONE specific hawker dish.
@@ -51,6 +47,8 @@ def health():
 
 @app.post("/recommend")
 def recommend(req: RecommendRequest):
+    # Structured as separate lines so the model treats each field distinctly.
+    # Lumping it into one sentence tends to produce weaker recommendations.
     user_message = (
         f"My mood: {req.mood}\n"
         f"My budget: {req.budget}\n"
@@ -65,7 +63,7 @@ def recommend(req: RecommendRequest):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            max_tokens=300,
+            max_tokens=300,  # food rec doesn't need much — 300 is plenty, keeps latency low
             stream=True,
         )
         for chunk in stream:

@@ -4,25 +4,21 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from openai import OpenAI
 
-# ─────────────────────────────────────────────────────────
-# Poly Student Companion — Study Buddy backend
-#
-# Pure REST API. No UI. One job: take a topic and level,
-# stream back an explanation from the LLM.
-#
-# The frontend calls this service. It knows nothing about
-# the Makan Advisor service — completely independent.
-# ─────────────────────────────────────────────────────────
-
 app = FastAPI()
 
+# Using the openai client here even though we're hitting HuggingFace —
+# HF router exposes an OpenAI-compatible endpoint, so we get streaming
+# and all the nice helpers for free without writing raw HTTP calls.
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key=os.environ.get("HF_TOKEN"),
+    api_key=os.environ.get("HF_TOKEN"),  # never hardcode this, comes from .env via docker-compose
 )
 
-MODEL = "google/gemma-4-31B-it"
+MODEL = "google/gemma-4-31b-it"
 
+# Each level maps to a different system prompt — same service, same endpoint,
+# completely different output depending on what the frontend sends.
+# If you want to add a new level later, just add a key here. No other changes needed.
 LEVEL_PROMPTS = {
     "simple": (
         "Explain this topic as if talking to a 12-year-old. "
@@ -42,9 +38,11 @@ LEVEL_PROMPTS = {
 
 class AskRequest(BaseModel):
     topic: str
-    level: str  # "simple" | "normal" | "technical"
+    level: str  # expected: "simple" | "normal" | "technical"
 
 
+# The frontend polls this every 3 seconds to check if this service is alive.
+# Keep it cheap — just return 200. No DB calls, no LLM calls.
 @app.get("/health")
 def health():
     return {"status": "up", "service": "study-buddy"}
@@ -52,6 +50,7 @@ def health():
 
 @app.post("/ask")
 def ask(req: AskRequest):
+    # Fall back to "normal" if the frontend sends something unexpected
     prompt = LEVEL_PROMPTS.get(req.level, LEVEL_PROMPTS["normal"])
 
     def generate():
@@ -62,11 +61,12 @@ def ask(req: AskRequest):
                 {"role": "user", "content": f"Explain this: {req.topic}"},
             ],
             max_tokens=400,
-            stream=True,
+            stream=True,  # ask the model to send tokens as they're generated, not all at once
         )
         for chunk in stream:
             token = chunk.choices[0].delta.content or ""
             if token:
-                yield token
+                yield token  # push each token straight to the response — this is what makes it feel like ChatGPT
 
+    # StreamingResponse wraps the generator — FastAPI handles the chunked HTTP transfer
     return StreamingResponse(generate(), media_type="text/plain")
