@@ -129,21 +129,87 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 
 ## Demo Script
 
-### Before touching the terminal
+> Read the full script once before the session to internalise the flow. Then use the step-by-step below during delivery — relevant lines are pulled in at each step.
 
-Show the folder structure first. Point at `docker-compose.yml`.
+---
 
-> *"One app. Three folders. Each folder is a microservice — its own code, its own Dockerfile, its own responsibility. The docker-compose.yml is the only thing that knows all three exist."*
+### Full Script (read-through)
 
-Open `study-buddy/app.py`. Point at `/health` and `/ask`.
+**A — File walkthrough**
+- Open VS Code with the `poly-companion` folder visible in the sidebar
+- "Before we run anything — let's read what we're about to run."
+- Point at the three folders: "Three folders. Three services. One app."
+- Open `docker-compose.yml`: "This is the only file that knows all three services exist. Each service block is self-contained — its own folder, its own port, its own container."
+- Point at no `ports:` on backends: "The backends have no ports exposed. Students can't reach them directly. Everything goes through the frontend — like a real API gateway."
+- Open `study-buddy/app.py`, scroll to `/health` and `/ask`: "Two endpoints. That's the entire surface area of this service. Health check so the system knows it's alive. Ask so the frontend can request an explanation."
+- Point at `stream=True` and `yield token`: "These two lines are what make the response stream. Token by token, as fast as the model generates them."
+- Open `makan-advisor/app.py`: "Same structure. Same pattern. Completely different job — food recommendations instead of explanations."
+- ❓ Ask: "Do these two services need to talk to each other to do their jobs?"
+- 💬 Expected: "No." → "Correct. They don't. They're completely independent. That's the point."
 
-> *"Two endpoints. That's the entire public surface of this microservice. Health check so the frontend knows it's alive. Ask endpoint so the frontend can request an explanation."*
+**B — Start and open**
+- Switch to terminal: `docker-compose up --build`
+- Point at interleaved output: "See the prefixes? `study-buddy` and `makan-advisor` building at the same time. Neither waits for the other."
+- Wait for all three ready lines, then open browser: `http://localhost:7862`
+- Point at two feature cards: "One URL. Two features. Students have no idea three containers are running underneath."
+- Scroll to architecture diagram: "But we can see it. Three boxes, two arrows, live status dots. The green dots confirm all three services are up and talking."
+- ❓ Ask: "Why do we only expose one port to the browser, not three?"
+- 💬 Expected: anything around "security" or "one entry point" → "Exactly. One door in. The frontend controls what gets through. That's the API gateway pattern."
 
-Show `makan-advisor/app.py`. Point out it's the same structure, different job.
+**C — Study Buddy**
+- Click the Study Buddy card
+- Type: "What is a microservice?" → level: Normal → submit
+- Point at streaming output: "Watch it type itself out. Same experience as ChatGPT — because it's the same streaming pattern. Token by token, live."
+- Submit again with level Simple: "Same service. Same container. Different system prompt — completely different output. The service adapts to the input, not to who calls it."
+- ❓ Ask: "If I want to change the explanation style — do I redeploy the whole app?"
+- 💬 Expected: "No, just the Study Buddy service." → "Right. Only the service that changed needs to be redeployed."
 
-> *"Same pattern. Different system prompt, different inputs, different outputs. Loose coupling — each service is only responsible for its own job."*  
-> → **S26 — What are Microservices?** Each service has one job, one codebase, one team. No shared code, no shared state.  
-> → **S29–32 — Why Microservices?** Flexibility (swap one without touching others), Reliability (one fails, others run), Scalability (scale only what's under load), Agility (teams ship independently).
+**D — Makan Advisor**
+- Click the Makan Advisor card
+- Point at the different UI: "Look at the inputs — dropdowns instead of a text box. Different job, different interface."
+- Select Stressed / $4–$6 / No preference → submit
+- Point at structured output: "Dish, location, price, pro tip — all streamed live. Same underlying pattern — one LLM call, one streaming response — scoped to one job."
+- ❓ Ask: "Has Study Buddy been affected by anything we just did in Makan Advisor?"
+- 💬 Expected: "No." → "No. They've never spoken to each other. No shared state, no shared code."
+
+**E — The key moment**
+- Open a new terminal: `docker-compose stop makan-advisor`
+- Switch to browser, point at diagram: "Makan Advisor dot just turned red. The frontend's health check detected it within 3 seconds — without us doing anything."
+- Click Makan Advisor card: "Red error card. Service is down. The frontend caught it and surfaced it clearly."
+- Click Study Buddy, submit a question: "Still streaming. Still working. Didn't notice."
+- ❓ Ask: "If this were a monolith — what would have happened when Makan Advisor broke?"
+- 💬 Expected: "Everything goes down." → "Login, payment, cart — everything. One bug, total outage. This is fault isolation — the failure stayed in one box."
+
+**F — Restart and close**
+- `docker-compose start makan-advisor`
+- Point at diagram: "Dot turns green. Study Buddy was never touched."
+- "One command. Zero coordination. No other team needed to know."
+- "In Kubernetes, this restart would happen automatically — before you even noticed it went down."
+- Closing: "This is what a microservices architecture looks like running. Not a diagram — actual separate containers, separate code, independent lifecycles. What you just saw is how Grab, Shopee, Netflix run their features."
+
+---
+
+### Step 0 — Before touching the terminal
+
+**What to show:** VS Code with `poly-companion` folder open in sidebar.
+
+🎤 **Say:** "Before we run anything — let's read what we're about to run."
+
+**Walk through each file:**
+
+| File | Point at | Say |
+|---|---|---|
+| Folder structure | Three subfolders | "Three folders. Three services. One app." |
+| `docker-compose.yml` | Service blocks, no `ports:` on backends | "Only one port exposed — everything goes through the frontend, like an API gateway." |
+| `study-buddy/app.py` | `/health`, `/ask`, `stream=True`, `yield token` | "Two endpoints. Two lines make it stream." |
+| `makan-advisor/app.py` | Same structure | "Same pattern, different job — food instead of explanations." |
+| `.env.example` | `HF_TOKEN` line | "Token lives here, not in any code file. 12-Factor rule 3." |
+
+❓ **Ask the class:** "Do these two services need to talk to each other?"  
+💬 **Expected:** "No" → "Correct. Completely independent. That's the whole point."
+
+📌 **S26 — What are Microservices?** One job, one codebase, one team per service.  
+📌 **S29–32 — Why Microservices?** Flexibility, Reliability, Scalability, Agility — each one is visible in this file structure.
 
 ---
 
@@ -154,16 +220,18 @@ cd path\to\poly-companion
 docker-compose up --build
 ```
 
-Point at the terminal output as it scrolls:
+👀 **Students notice:** Terminal shows interleaved lines prefixed `study-buddy |` and `makan-advisor |`
 
-> *"See `study-buddy` and `makan-advisor` in the output? Two services building in parallel. Neither waits for the other."*
+🎤 **Say:** "Both building at the same time. Neither waits for the other."
 
-Wait for:
+**Wait for all three ready lines:**
 ```
 study-buddy   | Uvicorn running on http://0.0.0.0:7860
 makan-advisor | Uvicorn running on http://0.0.0.0:7861
 frontend      | Uvicorn running on http://0.0.0.0:7862
 ```
+
+📌 **S33–36 — Containers** Each service packaged identically — runs the same everywhere Docker runs.
 
 ---
 
@@ -173,78 +241,117 @@ frontend      | Uvicorn running on http://0.0.0.0:7862
 http://localhost:7862
 ```
 
-Point at the two feature cards.
+👀 **Students notice:** Single landing page with two feature cards.
 
-> *"One URL. Two features. This is what a microservices app looks like to the user — they have no idea there are three containers running underneath."*
+🎤 **Say:** "One URL. Two features. Three containers underneath — students using this app would never know."
 
-Point at the architecture diagram at the bottom of the page.
+**Scroll to the architecture diagram at the bottom.**
 
-> *"But we can see it. Three boxes, two connections, live status dots. The frontend is the only public-facing container — the backends are sealed off."*  
-> → **S33–40 — Containers** Each service is packaged with its own code and dependencies — runs identically anywhere Docker runs. No "works on my machine."  
-> → **S39–40 — Kubernetes / Orchestration** K8s does what docker-compose does here, but at scale — manages routing, restarts, and health across hundreds of containers.
+👀 **Students notice:** Three boxes, arrows, green status dots.
+
+🎤 **Say:** "The diagram shows us what's actually running. Green dots — all three services up. The backends are sealed off — no direct browser access."
+
+❓ **Ask:** "Why do we only expose one port — not three?"  
+💬 **Expected:** "Security / one entry point" → "One door in. The frontend controls access. That's the API gateway pattern."
+
+📌 **S39–40 — Kubernetes** docker-compose does this locally; K8s does it at scale across hundreds of containers.
 
 ---
 
 ### Step 3 — Demo Study Buddy
 
-Click the Study Buddy card. Enter a topic — e.g. *"What is a microservice?"*, level Normal.
+**Click Study Buddy card.** Enter: `What is a microservice?` → level: Normal → submit.
 
-> *"Watch the response stream in token by token — just like ChatGPT. The backend is yielding tokens as fast as the LLM generates them."*
+👀 **Students notice:** Text appears word by word.
 
-Try again with level Simple.
+🎤 **Say:** "Watch it type itself out. Same as ChatGPT — because it's the same streaming pattern. Token by token, as the model generates them."
 
-> *"Same service, same container, different system prompt — completely different explanation. The service adapts to the input, not to who calls it."*  
-> → **S14–15 — Cloud Native AI** AI features are built and deployed as microservices, not bolted onto monoliths. The LLM here is just another service being called over an API.  
-> → **AI payoff (hook slide callback)** Streaming token by token = the exact pattern behind ChatGPT, Claude, Gemini. Same infrastructure, scoped to one job.
+**Submit again, same topic → level: Simple.**
+
+👀 **Students notice:** Much shorter, simpler explanation from the same service.
+
+🎤 **Say:** "Same service. Same container. Different system prompt — different output. The service adapts to the input."
+
+❓ **Ask:** "If I want to change the explanation style — do I redeploy the whole app?"  
+💬 **Expected:** "No, just Study Buddy." → "Exactly. Only the service that changed. Zero impact on Makan Advisor."
+
+📌 **S14–15 — Cloud Native AI** The LLM is just another service called over an API. Streaming = real production AI pattern.  
+📌 **AI hook payoff** This is the pattern behind every AI product they use daily.
 
 ---
 
 ### Step 4 — Demo Makan Advisor
 
-Click Makan Advisor. Select Stressed / $4–$6 / No preference.
+**Click Makan Advisor card.** Select: Stressed / $4–$6 / No preference → submit.
 
-> *"Different inputs — dropdowns instead of a text box. Different output — a structured food card. Different job. But the same pattern underneath: one endpoint, one LLM call, one streaming response."*
+👀 **Students notice:** Different UI (dropdowns, not a text box), structured output with emoji.
 
-> *"Study Buddy and Makan Advisor have never spoken to each other. They don't share any state or any code. This is what loose coupling looks like in practice."*
+🎤 **Say:** "Different inputs, different output, different job. But underneath — same pattern. One LLM call, one streaming response, one responsibility."
+
+🎤 **Say:** "Study Buddy and Makan Advisor have never spoken to each other. No shared state, no shared code."
+
+❓ **Ask:** "Has anything we just did in Makan Advisor affected Study Buddy?"  
+💬 **Expected:** "No." → "No. Loose coupling. Each service only knows about its own job."
+
+📌 **S29 — Flexibility** Different teams could own each card — shipping independently, never stepping on each other.
 
 ---
 
 ### Step 5 — THE KEY MOMENT — Stop Makan Advisor
 
-Open a new terminal in the same folder.
+> Do this slowly. Pause before each narration line.
+
+**Open a NEW terminal in the same folder:**
 
 ```bash
 docker-compose stop makan-advisor
 ```
 
-Switch back to the browser. Point at the architecture diagram.
+**Switch back to browser. Point at the architecture diagram.**
 
-> *"Watch the Makan Advisor dot turn red. The frontend's health check picked it up within 3 seconds."*
+👀 **Students notice:** Makan Advisor dot turns red within 3 seconds.
 
-Click the Makan Advisor card.
+🎤 **Say:** "The frontend's health check picked that up automatically. No one told it — it detected it."
 
-> *"Red error card: 'This service is currently down.' The frontend caught the failure and surfaced it cleanly."*
+**Click the Makan Advisor card.**
 
-Click Study Buddy. Submit a question.
+👀 **Students notice:** Red error card — "This service is currently down."
 
-> *"Still working. Streaming. Didn't notice. One service is down — the other is completely unaffected."*
+🎤 **Say:** "The frontend caught the failure and surfaced it clearly. Makan is down."
 
-> *"In a monolith — what would have happened?"*  
-> *(Pause. Let students answer.)*  
-> *"Everything down. This is fault isolation."*  
-> → **S30 — Reliability / Fault Isolation** A failure in one service stays contained. In a monolith, one bug can take down login, payment, everything. Here, Makan is down — Study Buddy never noticed.
+**Click Study Buddy. Submit a question.**
+
+👀 **Students notice:** Still works. Still streaming.
+
+🎤 **Say:** "Still working. Didn't notice. One service is down — the other is completely unaffected."
+
+❓ **Ask:** "If this were a monolith — what would have happened?"  
+💬 **Expected:** "Everything goes down." → "Login, cart, payment — everything. One bug, total outage. This is fault isolation — the failure stayed in one box."
+
+📌 **S30 — Reliability / Fault Isolation** One service failing never cascades. This is why Netflix can run 1,000+ services without one bug taking down your queue.
 
 ---
 
-### Step 6 — Restart
+### Step 6 — Restart and close
 
 ```bash
 docker-compose start makan-advisor
 ```
 
-> *"One command. Zero coordination with Study Buddy. The dot turns green. In Kubernetes, this restart would happen automatically — you wouldn't even run the command."*  
-> → **K8s Deployment / Self-healing (new slides)** A Deployment tells K8s: "keep N copies of this service running." If a Pod crashes, K8s reconciles — desired state vs actual state — and spins a replacement up automatically.  
-> → **S31–32 — Agility / Independent Deployment** The Makan team redeployed without a meeting, a sign-off, or touching Study Buddy. That's the agility microservices give you.
+👀 **Students notice:** Dot turns green. Makan Advisor card works again.
+
+🎤 **Say:** "One command. Zero coordination with Study Buddy. No other team needed to know."
+
+🎤 **Say:** "In Kubernetes, this restart would happen automatically — before you even noticed it went down."
+
+**Closing line:**  
+🎤 **Say:** "This is what a microservices architecture looks like running. Not a diagram — actual separate containers, separate code, independent lifecycles. What you just saw is how Grab, Shopee, and Netflix run their features."
+
+❓ **Final open question:** "What's one thing you'd build as a microservice in your next project?"  
+💬 **Let 2–3 students answer. No wrong answers. Close on their responses.**
+
+📌 **K8s self-healing (new slides)** Desired state vs actual state — K8s reconciles automatically.  
+📌 **S31–32 — Agility** Independent deployment: the Makan team shipped without a meeting, a sign-off, or touching Study Buddy.
 
 ---
 
