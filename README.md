@@ -3,6 +3,25 @@
 
 ---
 
+## Tech Stack — What, Why, and Why Not
+
+| Technology | Role in this demo | Why this | Why not X |
+|---|---|---|---|
+| **FastAPI** | REST API framework for all 3 services | Async-native, fast to write, auto-generates `/docs` — good for showing clean API contracts | Flask has no native async (matters for streaming); Django is too heavy; Gradio locks UI to the backend which defeats the microservices point |
+| **Uvicorn** | ASGI server that runs FastAPI | Lightweight, production-grade, handles async and streaming cleanly | Gunicorn alone doesn't support async; Flask's dev server is not production-appropriate |
+| **Docker** | Packages each service into its own container | Guarantees identical behaviour on any machine — no "works on my machine" | Bare Python scripts have no isolation; each student's machine would have different environments and break differently |
+| **Docker Compose** | Starts all 3 containers with one command | Simple enough for a demo, shows orchestration concept clearly, maps directly to Lab 5 content | Kubernetes is the real-world equivalent but too complex to install locally for a live demo; running 3 separate terminals loses the "one app" feel |
+| **HuggingFace Router API** | Calls the LLM without needing a GPU | Free tier available, OpenAI-compatible endpoint, no credit card needed for class use | OpenAI API costs money and needs a card; Ollama runs locally but needs a capable GPU students may not have |
+| **google/gemma-4-31b-it** | The LLM doing the actual generation | Strong instruction-following, good at structured output (food card format), HuggingFace-hosted | GPT-4 is proprietary and costs money; smaller models (Gemma 2B) produce weaker structured output; Qwen is also good but Gemma is a familiar Google name for students |
+| **openai Python library** | HTTP client that calls HuggingFace router | Same library students will use if they switch to OpenAI later — one API pattern, multiple backends | `requests` library is more verbose and has no built-in streaming helpers; HuggingFace's own client uses a different interface pattern |
+| **StreamingResponse + `yield`** | Sends tokens to the browser as they're generated | Makes the AI nature visually obvious — students see it "thinking" like ChatGPT | Returning the full response at once hides the LLM behaviour; WebSockets work but are overkill for one-directional streaming |
+| **httpx** | Frontend proxies streaming requests to backends | Async-native, supports streaming reads from one service and writes to another cleanly | `requests` is synchronous — it would block the frontend while waiting for the LLM; `aiohttp` works but is more complex to configure |
+| **Vanilla HTML + JS** | Landing page, forms, architecture diagram, health polling | No build step, no dependencies, works in any browser, easy to inspect in DevTools live | React/Vue adds a build pipeline that breaks the simplicity of the demo; Gradio would merge UI and logic into one service — exactly the monolith pattern we're arguing against |
+| **`.env` file** | Stores `HF_TOKEN` outside the code | Separates config from code — 12-Factor principle 3; Docker Compose reads it automatically | Hardcoding the token in source is a security risk and bad practice; passing it manually every `docker run` is error-prone across 3 services |
+| **`/health` endpoint** | Frontend polls each backend every 3 seconds | Makes service status visible in real time — the architecture diagram dots turn red live when you stop a service | No health check = silent failure, students wouldn't see the fault isolation moment clearly in the diagram |
+
+---
+
 ## What This Is
 
 One app. Three microservices. Students open a single URL and see two features — Study Buddy and Makan Advisor. Everything runs on their laptop via Docker Compose.
