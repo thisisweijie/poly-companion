@@ -123,7 +123,8 @@ Open `study-buddy/app.py`. Point at `/health` and `/ask`.
 Show `makan-advisor/app.py`. Point out it's the same structure, different job.
 
 > *"Same pattern. Different system prompt, different inputs, different outputs. Loose coupling — each service is only responsible for its own job."*  
-> → **Connects to S26 (What are Microservices?) and S29–32 (Why Microservices?)**
+> → **S26 — What are Microservices?** Each service has one job, one codebase, one team. No shared code, no shared state.  
+> → **S29–32 — Why Microservices?** Flexibility (swap one without touching others), Reliability (one fails, others run), Scalability (scale only what's under load), Agility (teams ship independently).
 
 ---
 
@@ -160,7 +161,8 @@ Point at the two feature cards.
 Point at the architecture diagram at the bottom of the page.
 
 > *"But we can see it. Three boxes, two connections, live status dots. The frontend is the only public-facing container — the backends are sealed off."*  
-> → **Connects to S33–40 (Containers) and S39–40 (Kubernetes / orchestration)**
+> → **S33–40 — Containers** Each service is packaged with its own code and dependencies — runs identically anywhere Docker runs. No "works on my machine."  
+> → **S39–40 — Kubernetes / Orchestration** K8s does what docker-compose does here, but at scale — manages routing, restarts, and health across hundreds of containers.
 
 ---
 
@@ -173,7 +175,8 @@ Click the Study Buddy card. Enter a topic — e.g. *"What is a microservice?"*, 
 Try again with level Simple.
 
 > *"Same service, same container, different system prompt — completely different explanation. The service adapts to the input, not to who calls it."*  
-> → **Connects to S14–15 (Cloud Native AI) and the AI payoff section**
+> → **S14–15 — Cloud Native AI** AI features are built and deployed as microservices, not bolted onto monoliths. The LLM here is just another service being called over an API.  
+> → **AI payoff (hook slide callback)** Streaming token by token = the exact pattern behind ChatGPT, Claude, Gemini. Same infrastructure, scoped to one job.
 
 ---
 
@@ -210,7 +213,7 @@ Click Study Buddy. Submit a question.
 > *"In a monolith — what would have happened?"*  
 > *(Pause. Let students answer.)*  
 > *"Everything down. This is fault isolation."*  
-> → **Connects directly to S30 (Reliability slide)**
+> → **S30 — Reliability / Fault Isolation** A failure in one service stays contained. In a monolith, one bug can take down login, payment, everything. Here, Makan is down — Study Buddy never noticed.
 
 ---
 
@@ -221,7 +224,8 @@ docker-compose start makan-advisor
 ```
 
 > *"One command. Zero coordination with Study Buddy. The dot turns green. In Kubernetes, this restart would happen automatically — you wouldn't even run the command."*  
-> → **Connects to K8s self-healing slides (new Pod/Deployment slides)**
+> → **K8s Deployment / Self-healing (new slides)** A Deployment tells K8s: "keep N copies of this service running." If a Pod crashes, K8s reconciles — desired state vs actual state — and spins a replacement up automatically.  
+> → **S31–32 — Agility / Independent Deployment** The Makan team redeployed without a meeting, a sign-off, or touching Study Buddy. That's the agility microservices give you.
 
 ---
 
