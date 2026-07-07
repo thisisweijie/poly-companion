@@ -9,12 +9,14 @@ app = FastAPI()
 # Using the openai client here even though we're hitting HuggingFace —
 # HF router exposes an OpenAI-compatible endpoint, so we get streaming
 # and all the nice helpers for free without writing raw HTTP calls.
+# Using the openai client pointed at HuggingFace router —
+# same OpenAI-compatible interface, no rewrite needed.
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key=os.environ.get("HF_TOKEN"),  # never hardcode this, comes from .env via docker-compose
+    api_key=os.environ.get("HF_TOKEN"),  # from .env via docker-compose
 )
 
-MODEL = "google/gemma-4-31b-it"
+MODEL = "google/gemma-4-31B-it"
 
 # Each level maps to a different system prompt — same service, same endpoint,
 # completely different output depending on what the frontend sends.
@@ -66,7 +68,7 @@ def ask(req: AskRequest):
         for chunk in stream:
             token = chunk.choices[0].delta.content or ""
             if token:
-                yield token  # push each token straight to the response — this is what makes it feel like ChatGPT
+                yield token  # push each token straight to the response
 
     # StreamingResponse wraps the generator — FastAPI handles the chunked HTTP transfer
     return StreamingResponse(generate(), media_type="text/plain")

@@ -6,19 +6,20 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Same client setup as study-buddy — HF router is OpenAI-compatible,
-# so we reuse the same library. Both services are independent but happen
-# to use the same model. That's fine — they don't share any state.
+# Same client setup as study-buddy — HF Serverless OpenAI-compatible endpoint.
+# Both services are independent but happen to use the same model.
+# That's fine — they don't share any state.
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
     api_key=os.environ.get("HF_TOKEN"),
 )
 
-MODEL = "google/gemma-4-31b-it"
+MODEL = "google/gemma-4-31B-it"
 
 # The format in this prompt matters a lot — if you change the emoji or field names,
 # update the frontend CSS too since the output renders as preformatted text.
-# Gemma follows formatting instructions pretty well but test if you swap models.
+# Gemma 4 follows formatting instructions well.
+# Gemma 4 follows formatting instructions well but test if you swap models.
 SYSTEM_PROMPT = """
 You are a friendly Singapore hawker food advisor for polytechnic students.
 Given a student's mood, budget and dietary preference, recommend ONE specific hawker dish.

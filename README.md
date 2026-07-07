@@ -11,9 +11,9 @@
 | **Uvicorn** | ASGI server that runs FastAPI | Lightweight, production-grade, handles async and streaming cleanly | Gunicorn alone doesn't support async; Flask's dev server is not production-appropriate |
 | **Docker** | Packages each service into its own container | Guarantees identical behaviour on any machine — no "works on my machine" | Bare Python scripts have no isolation; each student's machine would have different environments and break differently |
 | **Docker Compose** | Starts all 3 containers with one command | Simple enough for a demo, shows orchestration concept clearly, maps directly to Lab 5 content | Kubernetes is the real-world equivalent but too complex to install locally for a live demo; running 3 separate terminals loses the "one app" feel |
-| **HuggingFace Router API** | Calls the LLM without needing a GPU | Free tier available, OpenAI-compatible endpoint, no credit card needed for class use | OpenAI API costs money and needs a card; Ollama runs locally but needs a capable GPU students may not have |
-| **google/gemma-4-31b-it** | The LLM doing the actual generation | Strong instruction-following, good at structured output (food card format), HuggingFace-hosted | GPT-4 is proprietary and costs money; smaller models (Gemma 2B) produce weaker structured output; Qwen is also good but Gemma is a familiar Google name for students |
-| **openai Python library** | HTTP client that calls HuggingFace router | Same library students will use if they switch to OpenAI later — one API pattern, multiple backends | `requests` library is more verbose and has no built-in streaming helpers; HuggingFace's own client uses a different interface pattern |
+| **HuggingFace Inference Router** | Calls the LLM without needing a GPU or credits | Free tier, OpenAI-compatible, no credit card needed — single key for 20+ free models; uses router.huggingface.co/v1 | OpenAI API costs money; Ollama needs a local GPU; HF router consumed credits on large models |
+| **google/gemma-4-31B-it** | The LLM doing the actual generation | Free tier via HuggingFace router — get your token at huggingface.co/settings/tokens | GPT-4 is proprietary and costs money; Gemma 4 31B used credits via the router; Qwen 7B hits the sweet spot of quality vs free serverless availability |
+| **openai Python library** | HTTP client that calls HuggingFace Inference Router | Same library students will use if they switch to OpenAI later — one API pattern, multiple backends | `requests` library is more verbose and has no built-in streaming helpers; HuggingFace's own client uses a different interface pattern |
 | **StreamingResponse + `yield`** | Sends tokens to the browser as they're generated | Makes the AI nature visually obvious — students see it "thinking" like ChatGPT | Returning the full response at once hides the LLM behaviour; WebSockets work but are overkill for one-directional streaming |
 | **httpx** | Frontend proxies streaming requests to backends | Async-native, supports streaming reads from one service and writes to another cleanly | `requests` is synchronous — it would block the frontend while waiting for the LLM; `aiohttp` works but is more complex to configure |
 | **Vanilla HTML + JS** | Landing page, forms, architecture diagram, health polling | No build step, no dependencies, works in any browser, easy to inspect in DevTools live | React/Vue adds a build pipeline that breaks the simplicity of the demo; Gradio would merge UI and logic into one service — exactly the monolith pattern we're arguing against |
@@ -115,7 +115,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 
 ## The AI Angle — What to Say
 
-> *"Both services call the same LLM — Gemma 4 (google/gemma-4-31b-it) on HuggingFace. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
+> *"Both services call the same LLM — Qwen 2.5 7B via HuggingFace Inference Router. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
 
 > *"Watch the response build up word by word. This is streaming — the model sends tokens as it generates them, not all at once. This is the exact same pattern behind ChatGPT, Claude, Gemini. Our microservice does the same thing, scoped to one job."*
 
@@ -375,7 +375,7 @@ docker-compose start makan-advisor
 | Problem | Fix |
 |---|---|
 | Port conflict | Change left port in `docker-compose.yml`, rerun `up --build` |
-| HuggingFace 401 | Check `.env` — no spaces or quotes around token |
+| HuggingFace Inference Router 401 | Check `.env` — no spaces or quotes around token |
 | Service won't build | Check terminal for error line under that service's prefix, rerun `up --build` |
 | Browser won't load | Wait 15s after all three ready messages appear |
 | Streaming appears all at once | Confirm `stream=True` in the API call and `yield token` in the generator |

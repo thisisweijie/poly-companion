@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poly Student Companion</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+    color: #1a202c;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+    color: white;
+    padding: 28px 40px;
+    text-align: center;
+  }
+  header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+  header p  { margin-top: 6px; opacity: 0.85; font-size: 1rem; }
+
+  /* ── Main layout ── */
+  main { max-width: 960px; margin: 0 auto; padding: 36px 24px 60px; }
+
+  /* ── Feature cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    user-select: none;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+  .card.active-sb { border-color: #2d6a9f; background: #eff6ff; }
+  .card.active-ma { border-color: #c2410c; background: #fff7ed; }
+
+  .card-icon  { font-size: 2.4rem; margin-bottom: 12px; }
+  .card h2    { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .card p     { font-size: 0.9rem; color: #64748b; line-height: 1.5; }
+  .card-cta   { margin-top: 16px; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .card-cta.sb { color: #2d6a9f; }
+  .card-cta.ma { color: #c2410c; }
+
+  /* ── Active panel ── */
+  .panel {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+    display: none;
+    margin-bottom: 24px;
+  }
+  .panel.visible { display: block; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .panel-header.sb { background: #eff6ff; }
+  .panel-header.ma { background: #fff7ed; }
+  .panel-header h3 { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .panel-header.sb h3 { color: #1e3a5f; }
+  .panel-header.ma h3 { color: #92400e; }
+
+  .close-btn {
+    background: none; border: none; cursor: pointer;
+    color: #94a3b8; font-size: 1.4rem; line-height: 1;
+    padding: 4px 8px; border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .close-btn:hover { background: #e2e8f0; color: #475569; }
+
+  .panel-body { padding: 24px; }
+
+  /* ── Form elements ── */
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+
+  input[type="text"], textarea, select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #1a202c;
+    background: #f9fafb;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus { border-color: #2d6a9f; background: white; }
+  textarea { resize: vertical; min-height: 72px; }
+
+  .form-row { margin-bottom: 16px; }
+
+  .level-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  .level-btn {
+    padding: 8px 16px; border-radius: 20px; border: 1.5px solid #d1d5db;
+    background: white; cursor: pointer; font-size: 0.85rem; font-weight: 500;
+    transition: all 0.15s; color: #374151;
+  }
+  .level-btn:hover { border-color: #2d6a9f; color: #2d6a9f; }
+  .level-btn.selected { background: #2d6a9f; color: white; border-color: #2d6a9f; }
+
+  .submit-btn {
+    padding: 11px 24px; border-radius: 10px; border: none;
+    font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .submit-btn.sb { background: #2d6a9f; color: white; }
+  .submit-btn.sb:hover { background: #1e3a5f; }
+  .submit-btn.ma { background: #c2410c; color: white; }
+  .submit-btn.ma:hover { background: #92400e; }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Output ── */
+  .output-box {
+    margin-top: 20px;
+    display: none;
+  }
+  .output-box.visible { display: block; }
+
+  .output-label {
+    font-size: 0.8rem; font-weight: 600; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+  }
+
+  .output-text {
+    background: #f8fafc; border: 1.5px solid #e2e8f0;
+    border-radius: 10px; padding: 16px; font-size: 0.95rem;
+    line-height: 1.7; color: #1a202c; min-height: 80px;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+
+  .error-card {
+    background: #fef2f2; border: 1.5px solid #fca5a5;
+    border-radius: 10px; padding: 16px 20px;
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-top: 20px;
+  }
+  .error-card .error-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .error-card .error-title { font-weight: 700; color: #dc2626; margin-bottom: 4px; }
+  .error-card .error-msg   { font-size: 0.88rem; color: #7f1d1d; line-height: 1.5; }
+
+  .streaming-indicator {
+    display: inline-block;
+    width: 8px; height: 8px; background: #22c55e;
+    border-radius: 50%; margin-left: 6px;
+    animation: pulse 1s infinite;
+    vertical-align: middle;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── Architecture diagram ── */
+  .arch {
+    background: white; border-radius: 16px;
+    padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .arch h3 {
+    font-size: 0.85rem; font-weight: 700; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 24px;
+  }
+
+  .arch-diagram {
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+
+  .arch-box {
+    border-radius: 12px; padding: 14px 24px; text-align: center;
+    border: 2px solid; min-width: 200px;
+  }
+  .arch-box.frontend {
+    background: #eff6ff; border-color: #2d6a9f;
+    color: #1e3a5f;
+  }
+  .arch-box-label { font-size: 0.95rem; font-weight: 700; }
+  .arch-box-sub   { font-size: 0.78rem; opacity: 0.7; margin-top: 2px; font-family: monospace; }
+
+  .arch-arrow {
+    display: flex; flex-direction: column; align-items: center;
+    color: #94a3b8; font-size: 0.75rem; gap: 2px; padding: 4px 0;
+  }
+  .arch-arrow-line { width: 2px; height: 18px; background: #cbd5e1; }
+
+  .arch-backends {
+    display: flex; gap: 32px; align-items: flex-start;
+  }
+
+  .arch-backend-col {
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+
+  .arch-box.sb { background: #eff6ff; border-color: #93c5fd; color: #1e3a5f; }
+  .arch-box.ma { background: #fff7ed; border-color: #fdba74; color: #92400e; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.75rem; font-weight: 600; margin-top: 6px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
+    transition: background 0.4s ease;
+    flex-shrink: 0;
+  }
+  .status-dot.up   { background: #22c55e; }
+  .status-dot.down { background: #ef4444; }
+  .status-text { transition: color 0.4s ease; color: #94a3b8; }
+  .status-text.up   { color: #16a34a; }
+  .status-text.down { color: #dc2626; }
+
+  .arch-note {
+    margin-top: 20px; padding: 12px 16px;
+    background: #f8fafc; border-radius: 8px; border-left: 3px solid #cbd5e1;
+    font-size: 0.82rem; color: #64748b; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎓 Poly Student Companion</h1>
+  <p>Your AI-powered study &amp; food companion — powered by microservices</p>
+</header>
+
+<main>
+
+  <!-- Feature cards -->
+  <div class="cards">
+    <div class="card" id="card-sb" onclick="openPanel('sb')">
+      <div class="card-icon">📚</div>
+      <h2>Study Buddy</h2>
+      <p>Paste any topic and get a clear explanation at the level you need — from simple to technical.</p>
+      <div class="card-cta sb">Open Study Buddy →</div>
+    </div>
+    <div class="card" id="card-ma" onclick="openPanel('ma')">
+      <div class="card-icon">🍜</div>
+      <h2>Makan Advisor</h2>
+      <p>Tell us how you're feeling and your budget — we'll recommend the perfect hawker dish.</p>
+      <div class="card-cta ma">Open Makan Advisor →</div>
+    </div>
+  </div>
+
+  <!-- Study Buddy panel -->
+  <div class="panel" id="panel-sb">
+    <div class="panel-header sb">
+      <h3>📚 Study Buddy</h3>
+      <button class="close-btn" onclick="closePanel('sb')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <label for="sb-topic">What do you want to understand?</label>
+        <textarea id="sb-topic" placeholder="e.g. What is a microservice?  /  How does Docker work?  /  Explain recursion"></textarea>
+      </div>
+      <div class="form-row">
+        <label>Explanation level</label>
+        <div class="level-group">
+          <button class="level-btn" data-level="simple" onclick="selectLevel(this)">🟢 Simple</button>
+          <button class="level-btn selected" data-level="normal" onclick="selectLevel(this)">🟡 Normal</button>
+          <button class="level-btn" data-level="technical" onclick="selectLevel(this)">🔴 Technical</button>
+        </div>
+      </div>
+      <button class="submit-btn sb" id="sb-submit" onclick="submitStudyBuddy()">
+        Explain this →
+      </button>
+      <div class="output-box" id="sb-output-box">
+        <div class="output-label">Explanation <span class="streaming-indicator" id="sb-streaming" style="display:none"></span></div>
+        <div class="output-text" id="sb-output"></div>
+      </div>
+      <div id="sb-error" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Makan Advisor panel -->
+  <div class="panel" id="panel-ma">
+    <div class="panel-header ma">
+      <h3>🍜 Makan Advisor</h3>
+      <button class="close-btn" onclick="closePanel('ma')">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <label for="ma-mood">How are you feeling?</label>
+        <select id="ma-mood">
+          <option>😩 Stressed (need comfort food)</option>
+          <option>😴 Tired (need energy)</option>
+          <option>🎉 Happy (feel like celebrating)</option>
+          <option>🥱 Bored (want something different)</option>
+          <option>🤒 Under the weather (need something light)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="ma-budget">What's your budget?</label>
+        <select id="ma-budget">
+          <option>Under $4</option>
+          <option selected>$4 – $6</option>
+          <option>$6 – $10</option>
+          <option>Willing to spend more</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="ma-diet">Dietary preference</label>
+        <select id="ma-diet">
+          <option>No preference</option>
+          <option>Halal</option>
+          <option>Vegetarian</option>
+          <option>No pork</option>
+          <option>No seafood</option>
+        </select>
+      </div>
+      <button class="submit-btn ma" id="ma-submit" onclick="submitMakan()">
+        What should I eat? →
+      </button>
+      <div class="output-box" id="ma-output-box">
+        <div class="output-label">Recommendation <span class="streaming-indicator" id="ma-streaming" style="display:none"></span></div>
+        <div class="output-text" id="ma-output"></div>
+      </div>
+      <div id="ma-error" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Architecture diagram -->
+  <div class="arch">
+    <h3>🏗 Live Architecture</h3>
+    <div class="arch-diagram">
+
+      <div class="arch-box frontend">
+        <div class="arch-box-label">🌐 Frontend</div>
+        <div class="arch-box-sub">localhost:7862 — you are here</div>
+      </div>
+
+      <div style="display:flex; gap:60px">
+        <div class="arch-arrow"><div class="arch-arrow-line"></div></div>
+        <div class="arch-arrow"><div class="arch-arrow-line"></div></div>
+      </div>
+
+      <div class="arch-backends">
+        <div class="arch-backend-col">
+          <div class="arch-box sb">
+            <div class="arch-box-label">📚 Study Buddy</div>
+            <div class="arch-box-sub">study-buddy:7860</div>
+            <div class="status-badge">
+              <div class="status-dot" id="dot-sb"></div>
+              <span class="status-text" id="text-sb">Checking...</span>
+            </div>
+          </div>
+        </div>
+        <div class="arch-backend-col">
+          <div class="arch-box ma">
+            <div class="arch-box-label">🍜 Makan Advisor</div>
+            <div class="arch-box-sub">makan-advisor:7861</div>
+            <div class="status-badge">
+              <div class="status-dot" id="dot-ma"></div>
+              <span class="status-text" id="text-ma">Checking...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="arch-note">
+      Each service runs in its own container on Docker's internal network. Only the Frontend is reachable from your browser — the backends talk through Docker, not through the host.
+      Status updates every 3 seconds.
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Panel open/close ──────────────────────────────────────────
+
+  function openPanel(which) {
+    document.getElementById('panel-sb').classList.remove('visible');
+    document.getElementById('panel-ma').classList.remove('visible');
+    document.getElementById('card-sb').classList.remove('active-sb', 'active-ma');
+    document.getElementById('card-ma').classList.remove('active-sb', 'active-ma');
+
+    document.getElementById('panel-' + which).classList.add('visible');
+    document.getElementById('card-' + which).classList.add('active-' + which);
+
+    document.getElementById('panel-' + which).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closePanel(which) {
+    document.getElementById('panel-' + which).classList.remove('visible');
+    document.getElementById('card-' + which).classList.remove('active-sb', 'active-ma');
+  }
+
+  // ── Level selector ────────────────────────────────────────────
+
+  function selectLevel(btn) {
+    document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  // ── Error display ─────────────────────────────────────────────
+
+  function showServiceDown(prefix) {
+    const el = document.getElementById(prefix + '-error');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="error-card">
+        <div class="error-icon">🔴</div>
+        <div>
+          <div class="error-title">This service is currently down</div>
+          <div class="error-msg">
+            The backend microservice is not responding.<br>
+            The other feature is unaffected and still works normally.<br>
+            <em>This is fault isolation in action.</em>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById(prefix + '-output-box').classList.remove('visible');
+  }
+
+  function clearError(prefix) {
+    document.getElementById(prefix + '-error').style.display = 'none';
+  }
+
+  // ── Study Buddy submit ────────────────────────────────────────
+
+  async function submitStudyBuddy() {
+    const topic = document.getElementById('sb-topic').value.trim();
+    if (!topic) { document.getElementById('sb-topic').focus(); return; }
+
+    const level = document.querySelector('.level-btn.selected').dataset.level;
+    const outputBox = document.getElementById('sb-output-box');
+    const output    = document.getElementById('sb-output');
+    const streaming = document.getElementById('sb-streaming');
+    const btn       = document.getElementById('sb-submit');
+
+    clearError('sb');
+    output.textContent = '';
+    outputBox.classList.add('visible');
+    streaming.style.display = 'inline-block';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, level }),
+      });
+
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+
+      // ReadableStream loop — reads chunks as they arrive from the backend.
+      // This is what makes the text appear word by word instead of all at once.
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        // Check for sentinel values before appending — the backend sends these
+        // strings when it can't reach the LLM service, not actual response text.
+        if (chunk === 'SERVICE_DOWN' || chunk === 'SERVICE_ERROR') {
+          showServiceDown('sb');
+          return;
+        }
+        result += chunk;
+        output.textContent = result;
+      }
+    } catch (e) {
+      showServiceDown('sb');
+    } finally {
+      streaming.style.display = 'none';
+      btn.disabled = false;
+    }
+  }
+
+  // ── Makan Advisor submit ──────────────────────────────────────
+
+  async function submitMakan() {
+    const mood   = document.getElementById('ma-mood').value;
+    const budget = document.getElementById('ma-budget').value;
+    const diet   = document.getElementById('ma-diet').value;
+
+    const outputBox = document.getElementById('ma-output-box');
+    const output    = document.getElementById('ma-output');
+    const streaming = document.getElementById('ma-streaming');
+    const btn       = document.getElementById('ma-submit');
+
+    clearError('ma');
+    output.textContent = '';
+    outputBox.classList.add('visible');
+    streaming.style.display = 'inline-block';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mood, budget, diet }),
+      });
+
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (chunk === 'SERVICE_DOWN' || chunk === 'SERVICE_ERROR') {
+          showServiceDown('ma');
+          return;
+        }
+        result += chunk;
+        output.textContent = result;
+      }
+    } catch (e) {
+      showServiceDown('ma');
+    } finally {
+      streaming.style.display = 'none';
+      btn.disabled = false;
+    }
+  }
+
+  // ── Architecture health polling ───────────────────────────────
+
+  function setStatus(name, state) {
+    const short = name === 'study-buddy' ? 'sb' : 'ma';
+    const dot  = document.getElementById('dot-' + short);
+    const text = document.getElementById('text-' + short);
+    dot.className  = 'status-dot ' + state;
+    text.className = 'status-text ' + state;
+    text.textContent = state === 'up' ? 'Online' : 'Offline';
+  }
+
+  async function pollHealth() {
+    try {
+      const resp = await fetch('/health');
+      const data = await resp.json();
+      setStatus('study-buddy',   data['study-buddy']);
+      setStatus('makan-advisor', data['makan-advisor']);
+    } catch (e) {
+      // If the frontend itself is unreachable this catch fires — mark both down.
+      setStatus('study-buddy',   'down');
+      setStatus('makan-advisor', 'down');
+    }
+  }
+
+  // Fire immediately on load so the dots aren't grey for the first 3 seconds,
+  // then keep polling. 3s is short enough to catch a docker-compose stop live.
+  pollHealth();
+  setInterval(pollHealth, 3000);
+</script>
+</body>
+</html>
