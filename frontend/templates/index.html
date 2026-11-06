@@ -431,6 +431,28 @@
     document.getElementById(prefix + '-output-box').classList.remove('visible');
   }
 
+  // Shown when the service is running but the AI model itself refused or failed.
+  // Different from "service down": the container is healthy, so say that clearly.
+  function showLlmProblem(prefix, kind) {
+    const busy = kind === 'RATE_LIMITED';
+    const el = document.getElementById(prefix + '-error');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="error-card">
+        <div class="error-icon">${busy ? '⏳' : '⚠️'}</div>
+        <div>
+          <div class="error-title">${busy ? 'The AI is busy right now' : 'The AI model had a problem'}</div>
+          <div class="error-msg">
+            ${busy
+              ? 'The free AI service has hit its usage limit. Please wait a minute and try again.'
+              : 'The service is running, but the AI model did not answer. Please try again.'}<br>
+            <em>The service itself is up. The problem is the external AI provider.</em>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById(prefix + '-output-box').classList.remove('visible');
+  }
+
   function clearError(prefix) {
     document.getElementById(prefix + '-error').style.display = 'none';
   }
@@ -472,6 +494,10 @@
         const chunk = decoder.decode(value, { stream: true });
         // Check for sentinel values before appending — the backend sends these
         // strings when it can't reach the LLM service, not actual response text.
+        if (chunk === 'RATE_LIMITED' || chunk === 'LLM_ERROR') {
+          showLlmProblem('sb', chunk);
+          return;
+        }
         if (chunk === 'SERVICE_DOWN' || chunk === 'SERVICE_ERROR') {
           showServiceDown('sb');
           return;
@@ -520,6 +546,10 @@
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        if (chunk === 'RATE_LIMITED' || chunk === 'LLM_ERROR') {
+          showLlmProblem('ma', chunk);
+          return;
+        }
         if (chunk === 'SERVICE_DOWN' || chunk === 'SERVICE_ERROR') {
           showServiceDown('ma');
           return;

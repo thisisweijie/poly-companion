@@ -2,21 +2,21 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 app = FastAPI()
 
-# Using the openai client here even though we're hitting HuggingFace —
-# HF router exposes an OpenAI-compatible endpoint, so we get streaming
+# Using the openai client here even though we're hitting Groq —
+# Groq exposes an OpenAI-compatible endpoint, so we get streaming
 # and all the nice helpers for free without writing raw HTTP calls.
-# Using the openai client pointed at HuggingFace router —
+# Provider, key and model all come from env vars (see .env.example) —
 # same OpenAI-compatible interface, no rewrite needed.
 client = OpenAI(
-    base_url="https://router.huggingface.co/v1",
-    api_key=os.environ.get("HF_TOKEN"),  # from .env via docker-compose
+    base_url=os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
+    api_key=os.environ.get("LLM_API_KEY"),  # from .env via docker-compose
 )
 
-MODEL = "google/gemma-4-31B-it"
+MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
 
 # Each level maps to a different system prompt — same service, same endpoint,
 # completely different output depending on what the frontend sends.
@@ -31,9 +31,12 @@ LEVEL_PROMPTS = {
         "Use plain language and give one real-world example. Be concise."
     ),
     "technical": (
-        "Explain this topic in technical depth. "
-        "Cover: what it is, how it works under the hood, and one practical use case. "
-        "Use clear sections."
+        "Explain this topic in technical depth for someone with programming experience. "
+        "Use exactly three short sections with bold headings: "
+        "What it is, How it works under the hood, Practical use case. "
+        "Use the correct technical terms, and include one concrete detail per section "
+        "(a protocol, command, data structure or component name). "
+        "Keep it under 300 words. No diagrams, tables or ASCII art."
     ),
 }
 
@@ -56,19 +59,28 @@ def ask(req: AskRequest):
     prompt = LEVEL_PROMPTS.get(req.level, LEVEL_PROMPTS["normal"])
 
     def generate():
-        stream = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Explain this: {req.topic}"},
-            ],
-            max_tokens=400,
-            stream=True,  # ask the model to send tokens as they're generated, not all at once
-        )
-        for chunk in stream:
-            token = chunk.choices[0].delta.content or ""
-            if token:
-                yield token  # push each token straight to the response
+        # The HTTP response has already started by the time the LLM call runs, so an error
+        # can't become a status code. Send a short marker word instead; the page shows a
+        # friendly message for it. Without this, a rate limit looked like "service down".
+        try:
+            stream = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"Explain this: {req.topic}"},
+                ],
+                extra_body={"reasoning_effort": "low"},  # less hidden thinking: faster, and uses fewer free-tier tokens
+                max_tokens=1500,  # reasoning model: hidden thinking counts against this limit, 400 cut answers off
+                stream=True,  # ask the model to send tokens as they're generated, not all at once
+            )
+            for chunk in stream:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    yield token  # push each token straight to the response
+        except RateLimitError:
+            yield "RATE_LIMITED"
+        except Exception:
+            yield "LLM_ERROR"
 
     # StreamingResponse wraps the generator — FastAPI handles the chunked HTTP transfer
     return StreamingResponse(generate(), media_type="text/plain")

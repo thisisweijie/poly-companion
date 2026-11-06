@@ -11,13 +11,13 @@
 | **Uvicorn** | ASGI server that runs FastAPI | Lightweight, production-grade, handles async and streaming cleanly | Gunicorn alone doesn't support async; Flask's dev server is not production-appropriate |
 | **Docker** | Packages each service into its own container | Guarantees identical behaviour on any machine — no "works on my machine" | Bare Python scripts have no isolation; each student's machine would have different environments and break differently |
 | **Docker Compose** | Starts all 3 containers with one command | Simple enough for a demo, shows orchestration concept clearly, maps directly to Lab 5 content | Kubernetes is the real-world equivalent but too complex to install locally for a live demo; running 3 separate terminals loses the "one app" feel |
-| **HuggingFace Inference Router** | Calls the LLM without needing a GPU or credits | Free tier, OpenAI-compatible, no credit card needed — single key for 20+ free models; uses router.huggingface.co/v1 | OpenAI API costs money; Ollama needs a local GPU; HF router consumed credits on large models |
-| **google/gemma-4-31B-it** | The LLM doing the actual generation | Free tier via HuggingFace router — get your token at huggingface.co/settings/tokens | GPT-4 is proprietary and costs money; Gemma 4 31B used credits via the router; Qwen 7B hits the sweet spot of quality vs free serverless availability |
-| **openai Python library** | HTTP client that calls HuggingFace Inference Router | Same library students will use if they switch to OpenAI later — one API pattern, multiple backends | `requests` library is more verbose and has no built-in streaming helpers; HuggingFace's own client uses a different interface pattern |
+| **Groq (free tier)** | Calls the LLM without needing a local GPU | Free tier with no credit card, OpenAI-compatible, very fast streaming; uses api.groq.com/openai/v1. Provider is set by env vars, so it can be swapped without code changes | OpenAI API costs money; Ollama needs a capable local machine; Hugging Face Inference Providers now requires purchased credits for free accounts |
+| **openai/gpt-oss-20b and 120b** | The LLM doing the actual generation | Open-weight models served by Groq on the free tier. Study Buddy uses the 20b model, Makan Advisor uses the larger 120b, which knows Singapore food better. Set with `STUDY_BUDDY_MODEL` / `MAKAN_ADVISOR_MODEL` | GPT-4 is proprietary and costs money. Groq retires models from time to time, so re-test before class |
+| **openai Python library** | HTTP client that calls any OpenAI-compatible provider (Groq here) | Same library students will use if they switch to OpenAI later — one API pattern, multiple backends | `requests` library is more verbose and has no built-in streaming helpers; a provider-specific client would tie the code to one vendor |
 | **StreamingResponse + `yield`** | Sends tokens to the browser as they're generated | Makes the AI nature visually obvious — students see it "thinking" like ChatGPT | Returning the full response at once hides the LLM behaviour; WebSockets work but are overkill for one-directional streaming |
 | **httpx** | Frontend proxies streaming requests to backends | Async-native, supports streaming reads from one service and writes to another cleanly | `requests` is synchronous — it would block the frontend while waiting for the LLM; `aiohttp` works but is more complex to configure |
 | **Vanilla HTML + JS** | Landing page, forms, architecture diagram, health polling | No build step, no dependencies, works in any browser, easy to inspect in DevTools live | React/Vue adds a build pipeline that breaks the simplicity of the demo; Gradio would merge UI and logic into one service — exactly the monolith pattern we're arguing against |
-| **`.env` file** | Stores `HF_TOKEN` outside the code | Separates config from code — 12-Factor principle 3; Docker Compose reads it automatically | Hardcoding the token in source is a security risk and bad practice; passing it manually every `docker run` is error-prone across 3 services |
+| **`.env` file** | Stores `LLM_API_KEY` outside the code | Separates config from code — 12-Factor principle 3; Docker Compose reads it automatically | Hardcoding the token in source is a security risk and bad practice; passing it manually every `docker run` is error-prone across 3 services |
 | **`/health` endpoint** | Frontend polls each backend every 3 seconds | Makes service status visible in real time — the architecture diagram dots turn red live when you stop a service | No health check = silent failure, students wouldn't see the fault isolation moment clearly in the diagram |
 
 ---
@@ -46,10 +46,10 @@ This is the core teaching point. One container per responsibility:
 | Container | Job | Tech |
 |---|---|---|
 | `frontend` | Serves UI, proxies to backends, polls health | FastAPI + HTML/JS |
-| `study-buddy` | Explains topics via LLM, streams response | FastAPI + HuggingFace |
-| `makan-advisor` | Recommends hawker food via LLM, streams response | FastAPI + HuggingFace |
+| `study-buddy` | Explains topics via LLM, streams response | FastAPI + Groq |
+| `makan-advisor` | Recommends hawker food via LLM, streams response | FastAPI + Groq |
 
-Neither backend knows the other exists. They share nothing — no code, no state, no network address. This is loose coupling made physical.
+Neither backend knows the other exists. They share no code and no state, and neither calls the other. This is loose coupling made physical. They do both depend on the same LLM provider and token, so an outage there would affect both.
 
 ---
 
@@ -58,7 +58,8 @@ Neither backend knows the other exists. They share nothing — no code, no state
 ```
 poly-companion/
 ├── docker-compose.yml       orchestrates all 3; only frontend exposes a port
-├── .env                     HF_TOKEN lives here, never in any code file
+├── .env                     LLM_API_KEY lives here, never in any code file (git-ignored)
+├── .env.example             template showing which values .env needs
 ├── frontend/
 │   ├── app.py               GET / → HTML page; GET /health → polls both backends;
 │   │                        POST /ask + /recommend → stream proxy to backends
@@ -115,7 +116,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 
 ## The AI Angle — What to Say
 
-> *"Both services call the same LLM — Qwen 2.5 7B via HuggingFace Inference Router. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
+> *"Both services call the same LLM provider (Groq), each with its own model. But they each have a different system prompt, different inputs, different outputs, and a different job. Same infrastructure, completely different behaviour."*
 
 > *"Watch the response build up word by word. This is streaming — the model sends tokens as it generates them, not all at once. This is the exact same pattern behind ChatGPT, Claude, Gemini. Our microservice does the same thing, scoped to one job."*
 
@@ -154,7 +155,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 - Point at two feature cards: "One URL. Two features. Students have no idea three containers are running underneath."
 - Scroll to architecture diagram: "But we can see it. Three boxes, two arrows, live status dots. The green dots confirm all three services are up and talking."
 - ❓ Ask: "Why do we only expose one port to the browser, not three?"
-- 💬 Expected: anything around "security" or "one entry point" → "Exactly. One door in. The frontend controls what gets through. That's the API gateway pattern."
+- 💬 Expected: anything around "security" or "one entry point" → "Exactly. One door in. All traffic goes through one entry point. A real API gateway would also add auth and rate limiting here."
 
 **C — Study Buddy**
 - Click the Study Buddy card
@@ -168,7 +169,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 - Click the Makan Advisor card
 - Point at the different UI: "Look at the inputs — dropdowns instead of a text box. Different job, different interface."
 - Select Stressed / $4–$6 / No preference → submit
-- Point at structured output: "Dish, location, price, pro tip — all streamed live. Same underlying pattern — one LLM call, one streaming response — scoped to one job."
+- Point at structured output: "Dish, price, why it fits your mood, pro tip — all streamed live. Same underlying pattern — one LLM call, one streaming response — scoped to one job."
 - ❓ Ask: "Has Study Buddy been affected by anything we just did in Makan Advisor?"
 - 💬 Expected: "No." → "No. They've never spoken to each other. No shared state, no shared code."
 
@@ -203,7 +204,7 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 | `docker-compose.yml` | Service blocks, no `ports:` on backends | "Only one port exposed — everything goes through the frontend, like an API gateway." |
 | `study-buddy/app.py` | `/health`, `/ask`, `stream=True`, `yield token` | "Two endpoints. Two lines make it stream." |
 | `makan-advisor/app.py` | Same structure | "Same pattern, different job — food instead of explanations." |
-| `.env.example` | `HF_TOKEN` line | "Token lives here, not in any code file. 12-Factor rule 3." |
+| `.env.example` | `LLM_API_KEY` line | "This is a template. The real token goes in `.env`, which git ignores, so it's never in any code file. 12-Factor rule 3." |
 
 ❓ **Ask the class:** "Do these two services need to talk to each other?"  
 💬 **Expected:** "No" → "Correct. Completely independent. That's the whole point."
@@ -214,6 +215,8 @@ async with client.stream("POST", f"{STUDY_BUDDY_URL}/ask", json=...) as r:
 ---
 
 ### Step 1 — Start everything
+
+**First run only:** copy `.env.example` to `.env` and paste in your Groq API key (free at console.groq.com/keys).
 
 ```bash
 cd path\to\poly-companion
@@ -252,7 +255,7 @@ http://localhost:7862
 🎤 **Say:** "The diagram shows us what's actually running. Green dots — all three services up. The backends are sealed off — no direct browser access."
 
 ❓ **Ask:** "Why do we only expose one port — not three?"  
-💬 **Expected:** "Security / one entry point" → "One door in. The frontend controls access. That's the API gateway pattern."
+💬 **Expected:** "Security / one entry point" → "One door in. All traffic goes through one entry point. A real API gateway would also add auth and rate limiting here."
 
 📌 **S39–40 — Kubernetes** docker-compose does this locally; K8s does it at scale across hundreds of containers.
 
@@ -328,7 +331,7 @@ docker-compose stop makan-advisor
 ❓ **Ask:** "If this were a monolith — what would have happened?"  
 💬 **Expected:** "Everything goes down." → "Login, cart, payment — everything. One bug, total outage. This is fault isolation — the failure stayed in one box."
 
-📌 **S30 — Reliability / Fault Isolation** One service failing never cascades. This is why Netflix can run 1,000+ services without one bug taking down your queue.
+📌 **S30 — Reliability / Fault Isolation** Stopping this service didn't affect the other one. Large systems like Netflix design for the same thing, so one failing service doesn't take down your queue.
 
 ---
 
@@ -361,7 +364,7 @@ docker-compose start makan-advisor
 |---|---|---|
 | Three separate folders/containers | Single Responsibility | S26 |
 | Backends sealed, frontend as gateway | Loose coupling / independent deployment | S29–32 |
-| `HF_TOKEN` from `.env`, never in code | 12-Factor Factor 3 (Config) | New 12-Factor slides |
+| `LLM_API_KEY` from `.env`, never in code | 12-Factor Factor 3 (Config) | New 12-Factor slides |
 | Streaming token by token | Real AI serving pattern | S14–15 + AI payoff |
 | Terminal shows parallel builds | Independent services | S33–36 (Containers) |
 | Architecture diagram with live dots | Observability / visibility | S39–40 (K8s) |
@@ -375,7 +378,10 @@ docker-compose start makan-advisor
 | Problem | Fix |
 |---|---|
 | Port conflict | Change left port in `docker-compose.yml`, rerun `up --build` |
-| HuggingFace Inference Router 401 | Check `.env` — no spaces or quotes around token |
+| LLM returns 401 | Check `.env` — no spaces or quotes around the key |
+| Page says "The AI is busy right now" | Groq free-tier daily or per-minute limit hit (each model has its own daily token allowance). Wait a few minutes, or change `STUDY_BUDDY_MODEL` / `MAKAN_ADVISOR_MODEL` / `LLM_BASE_URL` |
+| Page says "The AI model had a problem" | The service is up but the provider returned an error. Check the key and that the model name still exists on Groq (`docker-compose logs <service>`) |
+| Dots are green but requests fail | `/health` only shows the containers are running, not that the LLM works. Check your key, rate limits, and that the model in `LLM_MODEL` still exists on Groq |
 | Service won't build | Check terminal for error line under that service's prefix, rerun `up --build` |
 | Browser won't load | Wait 15s after all three ready messages appear |
 | Streaming appears all at once | Confirm `stream=True` in the API call and `yield token` in the generator |
